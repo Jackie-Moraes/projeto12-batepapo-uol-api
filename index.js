@@ -43,10 +43,10 @@ app.post('/participants', async (req, res) => {
         const exists = await db.collection('participants').findOne({name: participant})
 
         if (exists) {
-            res.status(409).send("Esse nome já está em uso.");
+            return res.status(409).send("Esse nome já está em uso.");
         }
         if (typeof participant != "string" || participant.length < 1) {
-            res.sendStatus(422);
+            return res.status(422).send("O nome não pode estar vazio!");
         }
 
         await db.collection('participants').insertOne({name: participant, lastStatus: Date.now()});
