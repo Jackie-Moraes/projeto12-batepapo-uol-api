@@ -36,19 +36,19 @@ app.get('/participants', async (req, res) => {
 })
 
 app.post('/participants', async (req, res) => {
-    const participant = req.body.name;
-    const exists = db.collection('participants').findOne({name: participant})
-
-    if (exists) {
-        res.status(409).send("Esse nome já está em uso.");
-    }
-
-    if (typeof participant != "string" || participant.length < 1) {
-        res.sendStatus(422);
-    }
-
     try {
         await mongoClient.connect();
+
+        const participant = req.body.name;
+        const exists = await db.collection('participants').findOne({name: participant})
+
+        if (exists) {
+            res.status(409).send("Esse nome já está em uso.");
+        }
+        if (typeof participant != "string" || participant.length < 1) {
+            res.sendStatus(422);
+        }
+
         await db.collection('participants').insertOne({name: participant, lastStatus: Date.now()});
         // const now = dayjs().format('HH:mm:ss');
         await db.collection('messages').insertOne({from: participant, to: 'Todos', text: 'entra na sala...', type: 'status', time: dayjs().format('HH:mm:ss')});
