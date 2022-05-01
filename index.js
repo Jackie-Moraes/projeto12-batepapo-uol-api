@@ -29,7 +29,7 @@ promise.then(() => {
                 await onlineCollection.deleteOne({name: current.name});
             }
         }
-    }, 3000)
+    }, 15000)
 })
 promise.catch((e) => {
     console.log("Algo deu errado...", e)
