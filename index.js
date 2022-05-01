@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
+import joi from "joi";
 import dayjs from "dayjs";
 import 'dayjs/locale/pt-br.js'
 import dotenv from 'dotenv';
@@ -36,21 +37,32 @@ app.get('/participants', async (req, res) => {
 })
 
 app.post('/participants', async (req, res) => {
+    const participant = req.body;
+
+    const participantSchema = joi.object({
+        name: joi.string().required()
+    });
+
+    const validation = participantSchema.validate(participant, {abortEarly: false});
+
+    if (validation.error) {
+        console.log("Tá dando ruim", validation.error.details);
+    }
+
     try {
         await mongoClient.connect();
-
-        const participant = req.body.name;
-        const exists = await db.collection('participants').findOne({name: participant})
+        const exists = await db.collection('participants').findOne({name: participant.name})
 
         if (exists) {
             return res.status(409).send("Esse nome já está em uso.");
         }
-        if (typeof participant != "string" || !participant) {
+        if (typeof participant.name != "string" || !participant.name) {
             return res.status(422).send("O nome não pode estar vazio!");
         }
+        
 
-        await db.collection('participants').insertOne({name: participant, lastStatus: Date.now()});
-        await db.collection('messages').insertOne({from: participant, to: 'Todos', text: 'entra na sala...', type: 'status', time: dayjs().format('HH:mm:ss')});
+        await db.collection('participants').insertOne({name: participant.name, lastStatus: Date.now()});
+        await db.collection('messages').insertOne({from: participant.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: dayjs().format('HH:mm:ss')});
         res.sendStatus(201);
     } catch (e) {
         console.log("Erro!", e);
@@ -66,6 +78,13 @@ app.get('/messages', async (req, res) => {
         const user = req.headers.user;
         const limit = parseInt(req.query.limit);
         const messages = await db.collection('messages').find({}).toArray();
+
+        const exists = await db.collection('participants').findOne({name: user});
+
+        if (!exists) {
+            console.log("Não existe este usuário", exists)
+            return res.status(422).send("Este usuário não existe.");
+        }
 
         let userMessages = [];
         for (let i = 0; i < messages.length; i++) {
@@ -94,6 +113,20 @@ app.get('/messages', async (req, res) => {
 })
 
 app.post('/messages', async (req, res) => {
+    const message = req.body;
+
+    const messageSchema = joi.object({
+        to: joi.string().required(),
+        text: joi.string().required(),
+        type: joi.string().required()
+    });
+
+    const validation = messageSchema.validate(message, {abortEarly: false});
+
+    if (validation.error) {
+        console.log("Erro de validação", validation.error.details);
+    }
+
     try {
         await mongoClient.connect();
         const from = req.headers.user;
@@ -101,13 +134,14 @@ app.post('/messages', async (req, res) => {
 
         const exists = await db.collection('participants').findOne({name: from});
 
-        if (!to || !text || !type || !exists) {
-            console.log("failsafe 1", from, exists)
-            return res.status(422).send();
+        if (!exists) {
+            console.log("Não existe este usuário", exists)
+            return res.status(422).send("Este usuário não existe.");
         }
+
         if (type != "message" && type != "private_message") {
-            console.log("failsafe 2")
-            return res.status(422).send();
+            console.log("Tipo inválido.")
+            return res.status(422).send("Insira um tipo válido de mensagem.");
         }
 
         await db.collection('messages').insertOne({from: from, to: to, text: text, type: type, time: dayjs().format('HH:mm:ss')});
@@ -115,6 +149,29 @@ app.post('/messages', async (req, res) => {
     } catch (e) {
         console.log("Erro!", e);
         res.status(500).send("Algo deu errado.", e);
+    } finally {
+        mongoClient.close();
+    }
+})
+
+app.post('/status', async (req, res) => {
+    try {
+        await mongoClient.connect();
+        const from = req.headers.user;
+
+        const exists = await db.collection('participants').findOne({name: from});
+        if (!exists) {
+            console.log("Não existe este usuário", exists)
+            return res.status(404).send("Este usuário não existe.");
+        }
+
+        const updateActive = await b.collection('participants').updateOne({
+            name: from
+        }, {$set: {lastStatus: Date.now()}});
+        
+        res.status(200).send();
+    } catch {
+        res.status(500).send(error)
     } finally {
         mongoClient.close();
     }
