@@ -13,10 +13,23 @@ app.use(express.json());
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db = null;
+let now = null;
 
 const promise = mongoClient.connect();
 promise.then(() => {
     db = mongoClient.db("batepapo_uol")
+    setInterval(async () => {
+        const onlineCollection = db.collection('participants');
+        const usersOnline = await onlineCollection.find({}).toArray();
+        now = Date.now();
+        for (let i = 0; i < usersOnline.length; i++) {
+            if (now - usersOnline[i].lastStatus > 10000) {
+                const current = usersOnline[i];
+                await db.collection('messages').insertOne({from: current.name, to: 'Todos', text: "sai da sala...", type: 'status', time: dayjs().format('HH:mm:ss')});
+                await onlineCollection.deleteOne({name: current.name});
+            }
+        }
+    }, 3000)
 })
 promise.catch((e) => {
     console.log("Algo deu errado...", e)
@@ -31,10 +44,9 @@ app.get('/participants', async (req, res) => {
     } catch (e) {
         console.log("Erro!", e);
         res.status(500).send("Algo deu errado.", e);
-    } finally {
-        mongoClient.close();
     }
 })
+
 
 app.post('/participants', async (req, res) => {
     const participant = req.body;
@@ -67,10 +79,9 @@ app.post('/participants', async (req, res) => {
     } catch (e) {
         console.log("Erro!", e);
         res.status(500).send("Algo deu errado.", e);
-    } finally {
-        mongoClient.close();
     }
 })
+
 
 app.get('/messages', async (req, res) => {
     try {
@@ -107,10 +118,9 @@ app.get('/messages', async (req, res) => {
     } catch (e) {
         console.log("Erro!", e);
         res.status(500).send("Algo deu errado.", e);
-    } finally {
-        mongoClient.close();
     }
 })
+
 
 app.post('/messages', async (req, res) => {
     const message = req.body;
@@ -149,10 +159,9 @@ app.post('/messages', async (req, res) => {
     } catch (e) {
         console.log("Erro!", e);
         res.status(500).send("Algo deu errado.", e);
-    } finally {
-        mongoClient.close();
     }
 })
+
 
 app.post('/status', async (req, res) => {
     try {
@@ -170,10 +179,8 @@ app.post('/status', async (req, res) => {
         }, {$set: {lastStatus: Date.now()}});
         
         res.status(200).send();
-    } catch {
-        res.status(500).send(error)
-    } finally {
-        mongoClient.close();
+    } catch (e) {
+        res.status(500).send(e)
     }
 })
 
