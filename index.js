@@ -174,7 +174,7 @@ app.post('/status', async (req, res) => {
             return res.status(404).send("Este usuário não existe.");
         }
 
-        const updateActive = await b.collection('participants').updateOne({
+        await db.collection('participants').updateOne({
             name: from
         }, {$set: {lastStatus: Date.now()}});
         
